@@ -2,15 +2,29 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Hand Tracking AR</title>
   <style>
-    body { margin:0; background:#111; display:flex; justify-content:center; }
-    .container { position: relative; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
     video, canvas {
       position: absolute;
-      left: 0; top: 0;
-      width: 640px; height: 480px;
-      border-radius: 12px;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* заполняет экран без искажений, обрезая лишнее */
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -20,8 +34,8 @@
 <body>
 
 <div class="container">
-  <video class="input_video" style="display:none;"></video>
-  <canvas class="output_canvas" width="640" height="480"></canvas>
+  <video class="input_video" style="display:none;" playsinline></video>
+  <canvas class="output_canvas"></canvas>
 </div>
 
 <script>
@@ -29,16 +43,22 @@ const videoElement = document.getElementsByClassName('input_video')[0];
 const canvasElement = document.getElementsByClassName('output_canvas')[0];
 const canvasCtx = canvasElement.getContext('2d');
 
-// Цвета для разных пальцев (как на референсе: жёлтый, зелёный, синий, красный)
+// Подгоняем размер canvas под реальный размер экрана
+function resizeCanvas() {
+  canvasElement.width = window.innerWidth;
+  canvasElement.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
 const fingerColors = {
-  thumb:  '#FFD700', // большой — жёлтый
-  index:  '#00FF7F', // указательный — зелёный
-  middle: '#1E90FF', // средний — синий
-  ring:   '#FF4500', // безымянный — оранжево-красный
-  pinky:  '#FF00FF'  // мизинец — розовый
+  thumb:  '#FFD700',
+  index:  '#00FF7F',
+  middle: '#1E90FF',
+  ring:   '#FF4500',
+  pinky:  '#FF00FF'
 };
 
-// Индексы точек каждого пальца (по стандарту MediaPipe, 21 точка)
 const fingerIndices = {
   thumb:  [1,2,3,4],
   index:  [5,6,7,8],
@@ -50,32 +70,31 @@ const fingerIndices = {
 function onResults(results) {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+  // Рисуем видео с камеры на весь canvas (растягиваем под экран)
   canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
   if (results.multiHandLandmarks) {
     for (const landmarks of results.multiHandLandmarks) {
 
-      // Линии скелета руки
       drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
-        { color: '#FFFFFF80', lineWidth: 2 });
+        { color: '#FFFFFF80', lineWidth: 3 });
 
-      // Точки по пальцам с разными цветами
       for (const finger in fingerIndices) {
         for (const idx of fingerIndices[finger]) {
           const point = landmarks[idx];
           canvasCtx.beginPath();
           canvasCtx.arc(point.x * canvasElement.width,
                          point.y * canvasElement.height,
-                         6, 0, 2 * Math.PI);
+                         8, 0, 2 * Math.PI);
           canvasCtx.fillStyle = fingerColors[finger];
           canvasCtx.fill();
         }
       }
 
-      // Запястье (точка 0) — белым
       const wrist = landmarks[0];
       canvasCtx.beginPath();
-      canvasCtx.arc(wrist.x * canvasElement.width, wrist.y * canvasElement.height, 6, 0, 2*Math.PI);
+      canvasCtx.arc(wrist.x * canvasElement.width, wrist.y * canvasElement.height, 8, 0, 2*Math.PI);
       canvasCtx.fillStyle = '#FFFFFF';
       canvasCtx.fill();
     }
@@ -96,10 +115,12 @@ hands.setOptions({
 
 hands.onResults(onResults);
 
+// ВАЖНО: тут указываем заднюю камеру через facingMode
 const camera = new Camera(videoElement, {
   onFrame: async () => { await hands.send({image: videoElement}); },
-  width: 640,
-  height: 480
+  width: 1280,
+  height: 720,
+  facingMode: 'environment' // задняя камера вместо передней ('user')
 });
 camera.start();
 </script>
