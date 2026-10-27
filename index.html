@@ -24,7 +24,7 @@
       top: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover; /* заполняет экран без искажений, обрезая лишнее */
+      object-fit: cover;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -43,7 +43,6 @@ const videoElement = document.getElementsByClassName('input_video')[0];
 const canvasElement = document.getElementsByClassName('output_canvas')[0];
 const canvasCtx = canvasElement.getContext('2d');
 
-// Подгоняем размер canvas под реальный размер экрана
 function resizeCanvas() {
   canvasElement.width = window.innerWidth;
   canvasElement.height = window.innerHeight;
@@ -51,12 +50,13 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-const fingerColors = {
-  thumb:  '#FFD700',
-  index:  '#00FF7F',
-  middle: '#1E90FF',
-  ring:   '#FF4500',
-  pinky:  '#FF00FF'
+// Теперь пингвины на каждом пальце
+const fingerEmoji = {
+  thumb:  '🐧',
+  index:  '🐧',
+  middle: '🐧',
+  ring:   '🐧',
+  pinky:  '🐧'
 };
 
 const fingerIndices = {
@@ -70,33 +70,33 @@ const fingerIndices = {
 function onResults(results) {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-  // Рисуем видео с камеры на весь canvas (растягиваем под экран)
   canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
   if (results.multiHandLandmarks) {
     for (const landmarks of results.multiHandLandmarks) {
 
       drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
-        { color: '#FFFFFF80', lineWidth: 3 });
+        { color: '#FFFFFF60', lineWidth: 2 });
+
+      canvasCtx.textAlign = 'center';
+      canvasCtx.textBaseline = 'middle';
+      canvasCtx.font = '40px serif';
 
       for (const finger in fingerIndices) {
         for (const idx of fingerIndices[finger]) {
           const point = landmarks[idx];
-          canvasCtx.beginPath();
-          canvasCtx.arc(point.x * canvasElement.width,
-                         point.y * canvasElement.height,
-                         8, 0, 2 * Math.PI);
-          canvasCtx.fillStyle = fingerColors[finger];
-          canvasCtx.fill();
+          const x = point.x * canvasElement.width;
+          const y = point.y * canvasElement.height;
+          canvasCtx.fillText(fingerEmoji[finger], x, y);
         }
       }
 
+      // Запястье — отдельный пингвин покрупнее
       const wrist = landmarks[0];
-      canvasCtx.beginPath();
-      canvasCtx.arc(wrist.x * canvasElement.width, wrist.y * canvasElement.height, 8, 0, 2*Math.PI);
-      canvasCtx.fillStyle = '#FFFFFF';
-      canvasCtx.fill();
+      canvasCtx.font = '60px serif';
+      canvasCtx.fillText('🐧',
+        wrist.x * canvasElement.width,
+        wrist.y * canvasElement.height);
     }
   }
   canvasCtx.restore();
@@ -115,12 +115,11 @@ hands.setOptions({
 
 hands.onResults(onResults);
 
-// ВАЖНО: тут указываем заднюю камеру через facingMode
 const camera = new Camera(videoElement, {
   onFrame: async () => { await hands.send({image: videoElement}); },
   width: 1280,
   height: 720,
-  facingMode: 'environment' // задняя камера вместо передней ('user')
+  facingMode: 'environment'
 });
 camera.start();
 </script>
