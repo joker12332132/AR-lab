@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hand Tracking AR</title>
+  <style>
+    body { margin:0; background:#111; display:flex; justify-content:center; }
+    .container { position: relative; }
+    video, canvas {
+      position: absolute;
+      left: 0; top: 0;
+      width: 640px; height: 480px;
+      border-radius: 12px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+</head>
+<body>
+
+<div class="container">
+  <video class="input_video" style="display:none;"></video>
+  <canvas class="output_canvas" width="640" height="480"></canvas>
+</div>
+
+<script>
+const videoElement = document.getElementsByClassName('input_video')[0];
+const canvasElement = document.getElementsByClassName('output_canvas')[0];
+const canvasCtx = canvasElement.getContext('2d');
+
+// Цвета для разных пальцев (как на референсе: жёлтый, зелёный, синий, красный)
+const fingerColors = {
+  thumb:  '#FFD700', // большой — жёлтый
+  index:  '#00FF7F', // указательный — зелёный
+  middle: '#1E90FF', // средний — синий
+  ring:   '#FF4500', // безымянный — оранжево-красный
+  pinky:  '#FF00FF'  // мизинец — розовый
+};
+
+// Индексы точек каждого пальца (по стандарту MediaPipe, 21 точка)
+const fingerIndices = {
+  thumb:  [1,2,3,4],
+  index:  [5,6,7,8],
+  middle: [9,10,11,12],
+  ring:   [13,14,15,16],
+  pinky:  [17,18,19,20]
+};
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiHandLandmarks) {
+    for (const landmarks of results.multiHandLandmarks) {
+
+      // Линии скелета руки
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
+        { color: '#FFFFFF80', lineWidth: 2 });
+
+      // Точки по пальцам с разными цветами
+      for (const finger in fingerIndices) {
+        for (const idx of fingerIndices[finger]) {
+          const point = landmarks[idx];
+          canvasCtx.beginPath();
+          canvasCtx.arc(point.x * canvasElement.width,
+                         point.y * canvasElement.height,
+                         6, 0, 2 * Math.PI);
+          canvasCtx.fillStyle = fingerColors[finger];
+          canvasCtx.fill();
+        }
+      }
+
+      // Запястье (точка 0) — белым
+      const wrist = landmarks[0];
+      canvasCtx.beginPath();
+      canvasCtx.arc(wrist.x * canvasElement.width, wrist.y * canvasElement.height, 6, 0, 2*Math.PI);
+      canvasCtx.fillStyle = '#FFFFFF';
+      canvasCtx.fill();
+    }
+  }
+  canvasCtx.restore();
+}
+
+const hands = new Hands({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
+
+hands.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => { await hands.send({image: videoElement}); },
+  width: 640,
+  height: 480
+});
+camera.start();
+</script>
+</body>
+</html>
